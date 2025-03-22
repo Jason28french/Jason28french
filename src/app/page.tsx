@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Gallery from '@/components/Gallery'
 import Contact from '@/components/Contact'
 import LiveStream from '@/components/LiveStream'
+import StreamViewer from '@/components/StreamViewer'
 import AgeVerification from '@/components/AgeVerification'
 import Testimonials from '@/components/Testimonials'
 import FAQ from '@/components/FAQ'
@@ -37,7 +38,16 @@ export default function Home() {
       <section id="live" className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
           <h2 className="text-2xl font-semibold text-center mb-8">Live</h2>
-          <LiveStream />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <h3 className="text-lg font-medium mb-4">Diffusion</h3>
+              <LiveStream />
+            </div>
+            <div>
+              <h3 className="text-lg font-medium mb-4">Spectateurs</h3>
+              <StreamViewer />
+            </div>
+          </div>
         </div>
       </section>
 
