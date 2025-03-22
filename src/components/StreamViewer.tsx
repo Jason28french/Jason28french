@@ -1,120 +1,116 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import io from 'socket.io-client';
+
+const STREAMING_SERVER = process.env.NEXT_PUBLIC_STREAMING_SERVER || 'http://localhost:3001';
 
 export default function StreamViewer() {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
   const videoRef = useRef<HTMLVideoElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<any>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
 
-  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
-
   useEffect(() => {
-    const connectToStream = () => {
+    // Connexion au serveur Socket.IO
+    socketRef.current = io(STREAMING_SERVER);
+
+    // Configuration de la connexion Socket.IO
+    socketRef.current.on('connect', () => {
+      console.log('Connecté au serveur de streaming');
+      setIsConnected(true);
+      socketRef.current.emit('join-stream');
+    });
+
+    socketRef.current.on('broadcaster', async () => {
       try {
-        const ws = new WebSocket(wsUrl);
-        wsRef.current = ws;
+        // Création de la connexion WebRTC
+        const pc = new RTCPeerConnection({
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' }
+          ]
+        });
 
-        ws.onopen = () => {
-          console.log('Connecté au serveur WebSocket');
-          setIsConnected(true);
-          setError(null);
-          ws.send(JSON.stringify({ type: 'viewer' }));
-        };
-
-        ws.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          switch (data.type) {
-            case 'offer':
-              handleOffer(data.offer);
-              break;
-            case 'candidate':
-              handleCandidate(data.candidate);
-              break;
+        pc.ontrack = (event) => {
+          if (videoRef.current) {
+            videoRef.current.srcObject = event.streams[0];
           }
         };
 
-        ws.onclose = () => {
-          console.log('Déconnecté du serveur WebSocket');
-          setIsConnected(false);
+        pc.onicecandidate = (event) => {
+          if (event.candidate && socketRef.current) {
+            socketRef.current.emit('ice-candidate', event.candidate);
+          }
         };
 
-        ws.onerror = (error) => {
-          console.error('Erreur WebSocket:', error);
-          setError('Erreur de connexion au serveur');
-          setIsConnected(false);
-        };
+        // Création de l'offre
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
 
-      } catch (error) {
-        console.error('Erreur lors de la connexion:', error);
+        // Envoi de l'offre au broadcaster
+        socketRef.current.emit('offer', offer);
+
+        peerConnectionRef.current = pc;
+      } catch (err) {
+        console.error('Erreur lors de la création de la connexion WebRTC:', err);
         setError('Erreur lors de la connexion au stream');
       }
-    };
+    });
 
-    connectToStream();
+    socketRef.current.on('answer', async (answer: RTCSessionDescriptionInit) => {
+      try {
+        if (peerConnectionRef.current) {
+          await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
+        }
+      } catch (err) {
+        console.error('Erreur lors de la réception de la réponse:', err);
+        setError('Erreur lors de la connexion au stream');
+      }
+    });
+
+    socketRef.current.on('ice-candidate', async (candidate: RTCIceCandidateInit) => {
+      try {
+        if (peerConnectionRef.current) {
+          await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+      } catch (err) {
+        console.error('Erreur lors de l\'ajout du candidat ICE:', err);
+      }
+    });
+
+    socketRef.current.on('broadcaster-disconnected', () => {
+      setIsConnected(false);
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+      }
+    });
+
+    socketRef.current.on('disconnect', () => {
+      setIsConnected(false);
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
+        peerConnectionRef.current = null;
+      }
+    });
 
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
       }
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close();
       }
     };
   }, []);
-
-  const handleOffer = async (offer: RTCSessionDescriptionInit) => {
-    try {
-      const peerConnection = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' }
-        ]
-      });
-
-      peerConnectionRef.current = peerConnection;
-
-      peerConnection.ontrack = (event) => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = event.streams[0];
-        }
-      };
-
-      peerConnection.onicecandidate = (event) => {
-        if (event.candidate && wsRef.current) {
-          wsRef.current.send(JSON.stringify({
-            type: 'candidate',
-            candidate: event.candidate
-          }));
-        }
-      };
-
-      await peerConnection.setRemoteDescription(offer);
-      const answer = await peerConnection.createAnswer();
-      await peerConnection.setLocalDescription(answer);
-
-      if (wsRef.current) {
-        wsRef.current.send(JSON.stringify({
-          type: 'answer',
-          answer: answer
-        }));
-      }
-    } catch (error) {
-      console.error('Erreur lors de la gestion de l\'offre:', error);
-      setError('Erreur lors de la connexion avec le diffuseur');
-    }
-  };
-
-  const handleCandidate = async (candidate: RTCIceCandidateInit) => {
-    try {
-      if (peerConnectionRef.current) {
-        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-      }
-    } catch (error) {
-      console.error('Erreur lors de l\'ajout du candidat ICE:', error);
-    }
-  };
 
   return (
     <div className="w-full max-w-4xl mx-auto">
@@ -129,7 +125,7 @@ export default function StreamViewer() {
           {!isConnected && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
-                <p className="text-white mb-4">Connexion au stream...</p>
+                <p className="text-white mb-4">En attente du stream...</p>
                 {error && (
                   <p className="text-red-500 mb-4">{error}</p>
                 )}

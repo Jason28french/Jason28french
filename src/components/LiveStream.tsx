@@ -1,124 +1,68 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import io from 'socket.io-client'
+
+const STREAMING_SERVER = process.env.NEXT_PUBLIC_STREAMING_SERVER || 'http://localhost:3001'
 
 export default function LiveStream() {
   const [isStreaming, setIsStreaming] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [viewers, setViewers] = useState(0)
+  const [error, setError] = useState<string | null>(null)
+  
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const wsRef = useRef<WebSocket | null>(null)
-  const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({})
-
-  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001'
-
-  const handleOffer = async (offer: RTCSessionDescriptionInit) => {
-    try {
-      const peerConnection = new RTCPeerConnection({
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' }
-        ]
-      })
-
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => {
-          if (streamRef.current) {
-            peerConnection.addTrack(track, streamRef.current)
-          }
-        })
-      }
-
-      peerConnection.onicecandidate = (event) => {
-        if (event.candidate && wsRef.current) {
-          wsRef.current.send(JSON.stringify({
-            type: 'candidate',
-            candidate: event.candidate
-          }))
-        }
-      }
-
-      await peerConnection.setRemoteDescription(offer)
-      const answer = await peerConnection.createAnswer()
-      await peerConnection.setLocalDescription(answer)
-
-      if (wsRef.current) {
-        wsRef.current.send(JSON.stringify({
-          type: 'answer',
-          answer: answer
-        }))
-      }
-    } catch (error) {
-      console.error('Erreur lors de la gestion de l\'offre:', error)
-      setError('Erreur lors de la connexion avec le spectateur')
-    }
-  }
-
-  const handleCandidate = async (candidate: RTCIceCandidateInit) => {
-    try {
-      if (peerConnections.current) {
-        Object.values(peerConnections.current).forEach(async (pc) => {
-          await pc.addIceCandidate(new RTCIceCandidate(candidate))
-        })
-      }
-    } catch (error) {
-      console.error('Erreur lors de l\'ajout du candidat ICE:', error)
-    }
-  }
+  const socketRef = useRef<any>(null)
+  const peerConnectionsRef = useRef<{ [key: string]: RTCPeerConnection }>({})
 
   const startStream = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      // Connexion au serveur Socket.IO
+      socketRef.current = io(STREAMING_SERVER)
+      
+      // Configuration de la connexion Socket.IO
+      socketRef.current.on('connect', () => {
+        console.log('Connecté au serveur de streaming')
+        socketRef.current.emit('broadcaster')
+      })
+
+      // Gestion des réponses WebRTC
+      socketRef.current.on('answer', async (answer: RTCSessionDescriptionInit, viewerId: string) => {
+        const pc = peerConnectionsRef.current[viewerId]
+        if (pc) {
+          await pc.setRemoteDescription(new RTCSessionDescription(answer))
+        }
+      })
+
+      // Gestion des candidats ICE
+      socketRef.current.on('ice-candidate', async (candidate: RTCIceCandidateInit, viewerId: string) => {
+        const pc = peerConnectionsRef.current[viewerId]
+        if (pc) {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate))
+        }
+      })
+
+      // Gestion du nombre de spectateurs
+      socketRef.current.on('viewer-count', (count: number) => {
+        setViewers(count)
+      })
+
+      // Accès à la webcam
+      const stream = await navigator.mediaDevices.getUserMedia({
         video: true,
-        audio: true 
+        audio: true
       })
       
+      streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
       }
-      
-      streamRef.current = stream
+
       setIsStreaming(true)
       setError(null)
-
-      // Connexion au serveur WebSocket
-      const ws = new WebSocket(wsUrl)
-      wsRef.current = ws
-
-      ws.onopen = () => {
-        console.log('Connecté au serveur WebSocket')
-        ws.send(JSON.stringify({ type: 'broadcaster' }))
-      }
-
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data)
-        switch (data.type) {
-          case 'viewerCount':
-            setViewers(data.count)
-            break
-          case 'offer':
-            handleOffer(data.offer)
-            break
-          case 'candidate':
-            handleCandidate(data.candidate)
-            break
-        }
-      }
-
-      ws.onerror = (error) => {
-        console.error('Erreur WebSocket:', error)
-        setError('Erreur de connexion au serveur')
-      }
-
-      ws.onclose = () => {
-        console.log('Déconnecté du serveur WebSocket')
-        setIsStreaming(false)
-        setViewers(0)
-      }
-
-    } catch (error) {
-      console.error('Erreur lors du démarrage du stream:', error)
-      setError('Erreur lors de l\'accès à la webcam')
+    } catch (err) {
+      console.error('Erreur lors du démarrage du stream:', err)
+      setError('Erreur lors du démarrage du stream. Veuillez vérifier vos permissions de caméra.')
     }
   }
 
@@ -132,13 +76,14 @@ export default function LiveStream() {
       setIsStreaming(false)
     }
 
-    if (wsRef.current) {
-      wsRef.current.close()
-      wsRef.current = null
+    if (socketRef.current) {
+      socketRef.current.disconnect()
+      socketRef.current = null
     }
 
-    Object.values(peerConnections.current).forEach(pc => pc.close())
-    peerConnections.current = {}
+    // Fermeture des connexions WebRTC
+    Object.values(peerConnectionsRef.current).forEach(pc => pc.close())
+    peerConnectionsRef.current = {}
   }
 
   useEffect(() => {
@@ -164,7 +109,7 @@ export default function LiveStream() {
                 <p className="text-white mb-4">Prêt à diffuser ?</p>
                 <button
                   onClick={startStream}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  className="bg-gradient-to-r from-primary-600 to-primary-700 text-white px-6 py-3 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-300 font-medium shadow-lg hover:shadow-xl"
                 >
                   Démarrer le streaming
                 </button>

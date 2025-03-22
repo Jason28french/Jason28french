@@ -1,38 +1,61 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 
 export default function Navigation() {
   const [isOpen, setIsOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 20)
+    }
+    window.addEventListener('scroll', handleScroll)
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   return (
-    <nav className="fixed w-full z-50 bg-white/80 backdrop-blur-sm shadow-sm">
+    <nav className={`fixed w-full z-50 transition-all duration-300 ${
+      scrolled ? 'bg-white/90 backdrop-blur-md shadow-soft' : 'bg-transparent'
+    }`}>
       <div className="container mx-auto px-4">
-        <div className="flex justify-between items-center h-16">
-          <Link href="/" className="text-xl font-semibold text-secondary">
+        <div className="flex justify-between items-center h-20">
+          <Link href="/" className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-800 bg-clip-text text-transparent">
             Jason
           </Link>
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex space-x-8">
-            <Link href="#gallery" className="text-secondary hover:text-primary transition-colors">
+            <Link 
+              href="#gallery" 
+              className="text-secondary-700 hover:text-primary-600 transition-colors font-medium"
+            >
               Galerie
             </Link>
-            <Link href="#live" className="text-secondary hover:text-primary transition-colors">
+            <Link 
+              href="#live" 
+              className="text-secondary-700 hover:text-primary-600 transition-colors font-medium"
+            >
               Live
             </Link>
-            <Link href="#social" className="text-secondary hover:text-primary transition-colors">
+            <Link 
+              href="#social" 
+              className="text-secondary-700 hover:text-primary-600 transition-colors font-medium"
+            >
               Réseaux Sociaux
             </Link>
-            <Link href="#contact" className="text-secondary hover:text-primary transition-colors">
+            <Link 
+              href="#contact" 
+              className="text-secondary-700 hover:text-primary-600 transition-colors font-medium"
+            >
               Contact
             </Link>
           </div>
 
           {/* Mobile Menu Button */}
           <button
-            className="md:hidden text-secondary"
+            className="md:hidden text-secondary-700 hover:text-primary-600 transition-colors"
             onClick={() => setIsOpen(!isOpen)}
           >
             <svg
@@ -55,32 +78,32 @@ export default function Navigation() {
 
         {/* Mobile Navigation */}
         {isOpen && (
-          <div className="md:hidden py-4">
+          <div className="md:hidden py-4 animate-fade-in">
             <div className="flex flex-col space-y-4">
               <Link
                 href="#gallery"
-                className="text-secondary hover:text-primary transition-colors"
+                className="text-secondary-700 hover:text-primary-600 transition-colors font-medium"
                 onClick={() => setIsOpen(false)}
               >
                 Galerie
               </Link>
               <Link
                 href="#live"
-                className="text-secondary hover:text-primary transition-colors"
+                className="text-secondary-700 hover:text-primary-600 transition-colors font-medium"
                 onClick={() => setIsOpen(false)}
               >
                 Live
               </Link>
               <Link
                 href="#social"
-                className="text-secondary hover:text-primary transition-colors"
+                className="text-secondary-700 hover:text-primary-600 transition-colors font-medium"
                 onClick={() => setIsOpen(false)}
               >
                 Réseaux Sociaux
               </Link>
               <Link
                 href="#contact"
-                className="text-secondary hover:text-primary transition-colors"
+                className="text-secondary-700 hover:text-primary-600 transition-colors font-medium"
                 onClick={() => setIsOpen(false)}
               >
                 Contact

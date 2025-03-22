@@ -35,17 +35,19 @@ export default function Gallery() {
       {galleryItems.map((item) => (
         <div
           key={item.id}
-          className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group"
+          className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group shadow-lg hover:shadow-xl transition-all duration-300"
           onClick={() => setSelectedImage(item)}
         >
           <Image
             src={item.src}
             alt={item.alt}
             fill
-            className="object-cover transition-transform duration-300 group-hover:scale-110"
+            className="object-cover transition-transform duration-500 group-hover:scale-110"
           />
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-            <span className="text-white text-lg font-medium">Voir en grand</span>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-6">
+            <span className="text-white text-lg font-medium transform translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
+              Voir en grand
+            </span>
           </div>
         </div>
       ))}
@@ -53,19 +55,19 @@ export default function Gallery() {
       {/* Modal */}
       {selectedImage && (
         <div
-          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4 animate-fade-in"
           onClick={() => setSelectedImage(null)}
         >
-          <div className="relative max-w-4xl w-full">
+          <div className="relative max-w-5xl w-full">
             <Image
               src={selectedImage.src}
               alt={selectedImage.alt}
               width={1200}
               height={800}
-              className="rounded-lg"
+              className="rounded-lg shadow-2xl"
             />
             <button
-              className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-2 hover:bg-black/70 transition-colors"
+              className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-3 hover:bg-black/70 transition-colors duration-300 transform hover:scale-110"
               onClick={() => setSelectedImage(null)}
             >
               <svg
