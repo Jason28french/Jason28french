@@ -13,7 +13,7 @@ export default function StreamViewer() {
   useEffect(() => {
     const connectToStream = () => {
       try {
-        const socket = io();
+        const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || '');
         socketRef.current = socket;
 
         socket.emit('watcher');

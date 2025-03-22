@@ -7,7 +7,6 @@ const nextConfig = {
         hostname: '**',
       },
     ],
-    domains: ['localhost'],
   },
   reactStrictMode: true,
   webpack: (config) => {
@@ -16,6 +15,9 @@ const nextConfig = {
       'bufferutil': 'commonjs bufferutil',
     });
     return config;
+  },
+  experimental: {
+    serverActions: true,
   },
 }
 

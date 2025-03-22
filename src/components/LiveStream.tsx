@@ -27,8 +27,8 @@ export default function LiveStream() {
       setIsStreaming(true)
       setError(null)
 
-      // Connexion au serveur Socket.IO
-      const socket = io()
+      // Connexion au serveur Socket.IO avec URL dynamique
+      const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || '')
       socketRef.current = socket
 
       socket.emit('broadcaster')
