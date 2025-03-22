@@ -9,10 +9,12 @@ export default function StreamViewer() {
   const wsRef = useRef<WebSocket | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
 
+  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001';
+
   useEffect(() => {
     const connectToStream = () => {
       try {
-        const ws = new WebSocket('ws://localhost:3001');
+        const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
 
         ws.onopen = () => {

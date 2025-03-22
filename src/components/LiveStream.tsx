@@ -11,6 +11,8 @@ export default function LiveStream() {
   const wsRef = useRef<WebSocket | null>(null)
   const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({})
 
+  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001'
+
   const startStream = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -27,7 +29,7 @@ export default function LiveStream() {
       setError(null)
 
       // Connexion au serveur WebSocket
-      const ws = new WebSocket('ws://localhost:3001')
+      const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
       ws.onopen = () => {

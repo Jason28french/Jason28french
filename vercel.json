@@ -11,5 +11,8 @@
       "src": "/api/socket",
       "dest": "/api/socket"
     }
-  ]
+  ],
+  "env": {
+    "NEXT_PUBLIC_WS_URL": "wss://votre-serveur-websocket.com"
+  }
 } 
