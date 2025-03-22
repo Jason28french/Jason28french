@@ -53,13 +53,29 @@ export default function Home() {
             Live
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-            <div className="animate-fade-in">
-              <h3 className="text-xl font-semibold mb-6 text-secondary-800">Diffusion</h3>
-              <LiveStream />
+            <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+              <h3 className="text-xl font-semibold mb-4 text-secondary-800">Mode Diffusion</h3>
+              <p className="text-gray-600 mb-6">
+                Démarrez votre propre diffusion en direct et partagez-la avec vos spectateurs.
+              </p>
+              <a
+                href="/broadcast"
+                className="inline-block bg-gradient-to-r from-primary-600 to-primary-700 text-white px-8 py-3 rounded-lg hover:from-primary-700 hover:to-primary-800 transition-all duration-300 font-medium shadow-lg hover:shadow-xl"
+              >
+                Commencer à diffuser
+              </a>
             </div>
-            <div className="animate-fade-in">
-              <h3 className="text-xl font-semibold mb-6 text-secondary-800">Spectateurs</h3>
-              <StreamViewer />
+            <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+              <h3 className="text-xl font-semibold mb-4 text-secondary-800">Mode Spectateur</h3>
+              <p className="text-gray-600 mb-6">
+                Regardez la diffusion en direct et interagissez avec le diffuseur.
+              </p>
+              <a
+                href="/watch"
+                className="inline-block bg-gradient-to-r from-secondary-600 to-secondary-700 text-white px-8 py-3 rounded-lg hover:from-secondary-700 hover:to-secondary-800 transition-all duration-300 font-medium shadow-lg hover:shadow-xl"
+              >
+                Regarder le stream
+              </a>
             </div>
           </div>
         </div>
