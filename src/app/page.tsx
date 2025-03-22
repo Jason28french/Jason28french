@@ -4,6 +4,8 @@ import Gallery from '@/components/Gallery'
 import Contact from '@/components/Contact'
 import LiveStream from '@/components/LiveStream'
 import AgeVerification from '@/components/AgeVerification'
+import Testimonials from '@/components/Testimonials'
+import FAQ from '@/components/FAQ'
 
 export default function Home() {
   return (
@@ -128,26 +130,32 @@ export default function Home() {
       {/* Live Chat Section */}
       <section className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
-          <h2 className="text-2xl font-semibold text-center mb-8">Chat en direct</h2>
+          <h2 className="text-2xl font-semibold text-center mb-8">Direct Chat</h2>
           <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-6">
             <div className="h-[400px] border border-gray-200 rounded-md mb-4 p-4 overflow-y-auto">
               <div className="text-center text-gray-500">
-                Commencez la conversation !
+                Start the conversation!
               </div>
             </div>
             <div className="flex gap-2">
               <input
                 type="text"
-                placeholder="Écrivez votre message..."
+                placeholder="Write your message..."
                 className="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
               <button className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors">
-                Envoyer
+                Send    
               </button>
             </div>
           </div>
         </div>
       </section>
+
+      {/* Testimonials Section */}
+      <Testimonials />
+
+      {/* FAQ Section */}
+      <FAQ />
 
       {/* Contact Section */}
       <section className="py-16 bg-white">
