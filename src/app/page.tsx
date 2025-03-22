@@ -3,10 +3,12 @@ import Link from 'next/link'
 import Gallery from '@/components/Gallery'
 import Contact from '@/components/Contact'
 import LiveStream from '@/components/LiveStream'
+import AgeVerification from '@/components/AgeVerification'
 
 export default function Home() {
   return (
     <main className="min-h-screen">
+      <AgeVerification />
       {/* Hero Section */}
       <section className="relative h-[60vh] flex items-center justify-center">
         <Image
