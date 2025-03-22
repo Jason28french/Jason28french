@@ -18,43 +18,38 @@ export default function StreamViewer() {
         wsRef.current = ws;
 
         ws.onopen = () => {
-          console.log('Connecté au serveur de streaming');
-          ws.send(JSON.stringify({ type: 'watcher' }));
+          console.log('Connecté au serveur WebSocket');
           setIsConnected(true);
           setError(null);
+          ws.send(JSON.stringify({ type: 'viewer' }));
         };
 
-        ws.onmessage = async (event) => {
+        ws.onmessage = (event) => {
           const data = JSON.parse(event.data);
-          
           switch (data.type) {
-            case 'broadcaster':
-              console.log('Diffuseur trouvé');
-              break;
-            case 'offer':
-              await handleOffer(data.id, data.data);
+            case 'answer':
+              handleAnswer(data.answer);
               break;
             case 'candidate':
-              await handleCandidate(data.id, data.data);
-              break;
-            case 'disconnect':
-              handleDisconnect(data.id);
+              handleCandidate(data.candidate);
               break;
           }
         };
 
         ws.onclose = () => {
+          console.log('Déconnecté du serveur WebSocket');
           setIsConnected(false);
         };
 
-        ws.onerror = (err) => {
-          console.error('Erreur WebSocket:', err);
-          setError('Erreur de connexion au serveur de streaming');
+        ws.onerror = (error) => {
+          console.error('Erreur WebSocket:', error);
+          setError('Erreur de connexion au serveur');
+          setIsConnected(false);
         };
 
-      } catch (err) {
-        console.error('Erreur de connexion:', err);
-        setError('Impossible de se connecter au stream');
+      } catch (error) {
+        console.error('Erreur lors de la connexion:', error);
+        setError('Erreur lors de la connexion au stream');
       }
     };
 
@@ -108,16 +103,15 @@ export default function StreamViewer() {
     }
   };
 
-  const handleCandidate = async (id: string, candidate: RTCIceCandidate) => {
+  const handleCandidate = async (candidate: RTCIceCandidate) => {
     if (peerConnectionRef.current) {
       await peerConnectionRef.current.addIceCandidate(candidate);
     }
   };
 
-  const handleDisconnect = (id: string) => {
+  const handleAnswer = (answer: RTCSessionDescription) => {
     if (peerConnectionRef.current) {
-      peerConnectionRef.current.close();
-      peerConnectionRef.current = null;
+      peerConnectionRef.current.setRemoteDescription(answer);
     }
   };
 

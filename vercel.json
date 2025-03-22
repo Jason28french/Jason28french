@@ -13,6 +13,6 @@
     }
   ],
   "env": {
-    "NEXT_PUBLIC_WS_URL": "wss://votre-serveur-websocket.com"
+    "NEXT_PUBLIC_WS_URL": "wss://jason-websocket-server-2024-8552f2e07dad.herokuapp.com"
   }
 } 

@@ -26,43 +26,45 @@ export default function LiveStream() {
       
       streamRef.current = stream
       setIsStreaming(true)
-      setError(null)
 
       // Connexion au serveur WebSocket
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
       ws.onopen = () => {
-        console.log('Connecté au serveur de streaming')
+        console.log('Connecté au serveur WebSocket')
         ws.send(JSON.stringify({ type: 'broadcaster' }))
       }
 
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data)
         switch (data.type) {
-          case 'watcher':
-            handleWatcher(data.id)
+          case 'viewerCount':
+            setViewers(data.count)
             break
-          case 'answer':
-            handleAnswer(data.id, data.data)
+          case 'offer':
+            handleOffer(data.offer)
             break
           case 'candidate':
-            handleCandidate(data.id, data.data)
-            break
-          case 'disconnect':
-            handleDisconnect(data.id)
+            handleCandidate(data.candidate)
             break
         }
       }
 
-      ws.onerror = (err) => {
-        console.error('Erreur WebSocket:', err)
-        setError('Erreur de connexion au serveur de streaming')
+      ws.onerror = (error) => {
+        console.error('Erreur WebSocket:', error)
+        setError('Erreur de connexion au serveur')
       }
 
-    } catch (err) {
-      setError('Erreur lors de l\'accès à la webcam. Veuillez vérifier vos permissions.')
-      console.error('Erreur de streaming:', err)
+      ws.onclose = () => {
+        console.log('Déconnecté du serveur WebSocket')
+        setIsStreaming(false)
+        setViewers(0)
+      }
+
+    } catch (error) {
+      console.error('Erreur lors du démarrage du stream:', error)
+      setError('Erreur lors de l\'accès à la webcam')
     }
   }
 
