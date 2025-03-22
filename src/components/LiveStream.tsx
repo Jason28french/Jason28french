@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import io from 'socket.io-client'
 
 export default function LiveStream() {
   const [isStreaming, setIsStreaming] = useState(false)
@@ -8,7 +9,8 @@ export default function LiveStream() {
   const [viewers, setViewers] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const wsRef = useRef<WebSocket | null>(null)
+  const socketRef = useRef<any>(null)
+  const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({})
 
   const startStream = async () => {
     try {
@@ -25,37 +27,55 @@ export default function LiveStream() {
       setIsStreaming(true)
       setError(null)
 
-      // Connexion au serveur WebSocket
-      const ws = new WebSocket('ws://localhost:3001')
-      wsRef.current = ws
+      // Connexion au serveur Socket.IO
+      const socket = io()
+      socketRef.current = socket
 
-      ws.onopen = () => {
-        console.log('Connecté au serveur de streaming')
-      }
+      socket.emit('broadcaster')
 
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data)
-        if (data.type === 'viewerCount') {
-          setViewers(data.count)
+      socket.on('watcher', (id: string) => {
+        const peerConnection = new RTCPeerConnection({
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' }
+          ]
+        })
+
+        peerConnections.current[id] = peerConnection
+
+        stream.getTracks().forEach(track => {
+          peerConnection.addTrack(track, stream)
+        })
+
+        peerConnection.onicecandidate = (event) => {
+          if (event.candidate) {
+            socket.emit('candidate', id, event.candidate)
+          }
         }
-      }
 
-      // Envoyer les frames vidéo
-      const canvas = document.createElement('canvas')
-      const context = canvas.getContext('2d')
-      canvas.width = 640
-      canvas.height = 480
+        peerConnection.createOffer()
+          .then(sdp => peerConnection.setLocalDescription(sdp))
+          .then(() => {
+            socket.emit('offer', id, peerConnection.localDescription)
+          })
+      })
 
-      const sendFrame = () => {
-        if (context && videoRef.current && ws.readyState === WebSocket.OPEN) {
-          context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height)
-          const frame = canvas.toDataURL('image/jpeg', 0.5)
-          ws.send(JSON.stringify({ type: 'frame', data: frame }))
-        }
-        requestAnimationFrame(sendFrame)
-      }
+      socket.on('answer', (id: string, description: RTCSessionDescription) => {
+        peerConnections.current[id].setRemoteDescription(description)
+      })
 
-      sendFrame()
+      socket.on('candidate', (id: string, candidate: RTCIceCandidate) => {
+        peerConnections.current[id].addIceCandidate(new RTCIceCandidate(candidate))
+      })
+
+      socket.on('disconnectPeer', (id: string) => {
+        peerConnections.current[id].close()
+        delete peerConnections.current[id]
+      })
+
+      socket.on('viewerCount', (count: number) => {
+        setViewers(count)
+      })
+
     } catch (err) {
       setError('Erreur lors de l\'accès à la webcam. Veuillez vérifier vos permissions.')
       console.error('Erreur de streaming:', err)
@@ -72,10 +92,13 @@ export default function LiveStream() {
       setIsStreaming(false)
     }
 
-    if (wsRef.current) {
-      wsRef.current.close()
-      wsRef.current = null
+    if (socketRef.current) {
+      socketRef.current.disconnect()
+      socketRef.current = null
     }
+
+    Object.values(peerConnections.current).forEach(pc => pc.close())
+    peerConnections.current = {}
   }
 
   useEffect(() => {

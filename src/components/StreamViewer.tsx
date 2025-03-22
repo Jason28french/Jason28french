@@ -1,51 +1,76 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import io from 'socket.io-client';
 
 export default function StreamViewer() {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const wsRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<any>(null);
+  const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
 
   useEffect(() => {
     const connectToStream = () => {
       try {
-        const ws = new WebSocket('ws://localhost:3001');
-        wsRef.current = ws;
+        const socket = io();
+        socketRef.current = socket;
 
-        ws.onopen = () => {
-          console.log('Connecté au stream');
+        socket.emit('watcher');
+
+        socket.on('broadcaster', () => {
+          console.log('Diffuseur trouvé');
+        });
+
+        socket.on('offer', (id: string, description: RTCSessionDescription) => {
+          const peerConnection = new RTCPeerConnection({
+            iceServers: [
+              { urls: 'stun:stun.l.google.com:19302' }
+            ]
+          });
+
+          peerConnectionRef.current = peerConnection;
+
+          peerConnection.ontrack = (event) => {
+            if (videoRef.current) {
+              videoRef.current.srcObject = event.streams[0];
+            }
+          };
+
+          peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+              socket.emit('candidate', id, event.candidate);
+            }
+          };
+
+          peerConnection.setRemoteDescription(description)
+            .then(() => peerConnection.createAnswer())
+            .then(sdp => peerConnection.setLocalDescription(sdp))
+            .then(() => {
+              socket.emit('answer', id, peerConnection.localDescription);
+            });
+        });
+
+        socket.on('candidate', (id: string, candidate: RTCIceCandidate) => {
+          if (peerConnectionRef.current) {
+            peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+          }
+        });
+
+        socket.on('connect', () => {
           setIsConnected(true);
           setError(null);
-        };
+        });
 
-        ws.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          if (data.type === 'frame' && videoRef.current) {
-            const img = new Image();
-            img.onload = () => {
-              const canvas = document.createElement('canvas');
-              const context = canvas.getContext('2d');
-              if (context) {
-                canvas.width = img.width;
-                canvas.height = img.height;
-                context.drawImage(img, 0, 0);
-                videoRef.current!.srcObject = canvas.captureStream();
-              }
-            };
-            img.src = data.data;
-          }
-        };
-
-        ws.onclose = () => {
+        socket.on('disconnect', () => {
           setIsConnected(false);
-        };
+        });
 
-        ws.onerror = (err) => {
-          console.error('Erreur WebSocket:', err);
+        socket.on('error', (err: Error) => {
+          console.error('Erreur Socket.IO:', err);
           setError('Erreur de connexion au stream');
-        };
+        });
+
       } catch (err) {
         console.error('Erreur de connexion:', err);
         setError('Impossible de se connecter au stream');
@@ -55,8 +80,11 @@ export default function StreamViewer() {
     connectToStream();
 
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+      if (peerConnectionRef.current) {
+        peerConnectionRef.current.close();
       }
     };
   }, []);
