@@ -27,8 +27,8 @@ export default function StreamViewer() {
         ws.onmessage = (event) => {
           const data = JSON.parse(event.data);
           switch (data.type) {
-            case 'answer':
-              handleAnswer(data.answer);
+            case 'offer':
+              handleOffer(data.offer);
               break;
             case 'candidate':
               handleCandidate(data.candidate);
@@ -65,53 +65,54 @@ export default function StreamViewer() {
     };
   }, []);
 
-  const handleOffer = async (id: string, offer: RTCSessionDescription) => {
-    const peerConnection = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' }
-      ]
-    });
+  const handleOffer = async (offer: RTCSessionDescriptionInit) => {
+    try {
+      const peerConnection = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' }
+        ]
+      });
 
-    peerConnectionRef.current = peerConnection;
+      peerConnectionRef.current = peerConnection;
 
-    peerConnection.ontrack = (event) => {
-      if (videoRef.current) {
-        videoRef.current.srcObject = event.streams[0];
-      }
-    };
+      peerConnection.ontrack = (event) => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = event.streams[0];
+        }
+      };
 
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate && wsRef.current) {
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate && wsRef.current) {
+          wsRef.current.send(JSON.stringify({
+            type: 'candidate',
+            candidate: event.candidate
+          }));
+        }
+      };
+
+      await peerConnection.setRemoteDescription(offer);
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+
+      if (wsRef.current) {
         wsRef.current.send(JSON.stringify({
-          type: 'candidate',
-          targetId: id,
-          candidate: event.candidate
+          type: 'answer',
+          answer: answer
         }));
       }
-    };
-
-    await peerConnection.setRemoteDescription(offer);
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-
-    if (wsRef.current) {
-      wsRef.current.send(JSON.stringify({
-        type: 'answer',
-        targetId: id,
-        answer: answer
-      }));
+    } catch (error) {
+      console.error('Erreur lors de la gestion de l\'offre:', error);
+      setError('Erreur lors de la connexion avec le diffuseur');
     }
   };
 
-  const handleCandidate = async (candidate: RTCIceCandidate) => {
-    if (peerConnectionRef.current) {
-      await peerConnectionRef.current.addIceCandidate(candidate);
-    }
-  };
-
-  const handleAnswer = (answer: RTCSessionDescription) => {
-    if (peerConnectionRef.current) {
-      peerConnectionRef.current.setRemoteDescription(answer);
+  const handleCandidate = async (candidate: RTCIceCandidateInit) => {
+    try {
+      if (peerConnectionRef.current) {
+        await peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout du candidat ICE:', error);
     }
   };
 

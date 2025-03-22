@@ -13,6 +13,59 @@ export default function LiveStream() {
 
   const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001'
 
+  const handleOffer = async (offer: RTCSessionDescriptionInit) => {
+    try {
+      const peerConnection = new RTCPeerConnection({
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' }
+        ]
+      })
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => {
+          if (streamRef.current) {
+            peerConnection.addTrack(track, streamRef.current)
+          }
+        })
+      }
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate && wsRef.current) {
+          wsRef.current.send(JSON.stringify({
+            type: 'candidate',
+            candidate: event.candidate
+          }))
+        }
+      }
+
+      await peerConnection.setRemoteDescription(offer)
+      const answer = await peerConnection.createAnswer()
+      await peerConnection.setLocalDescription(answer)
+
+      if (wsRef.current) {
+        wsRef.current.send(JSON.stringify({
+          type: 'answer',
+          answer: answer
+        }))
+      }
+    } catch (error) {
+      console.error('Erreur lors de la gestion de l\'offre:', error)
+      setError('Erreur lors de la connexion avec le spectateur')
+    }
+  }
+
+  const handleCandidate = async (candidate: RTCIceCandidateInit) => {
+    try {
+      if (peerConnections.current) {
+        Object.values(peerConnections.current).forEach(async (pc) => {
+          await pc.addIceCandidate(new RTCIceCandidate(candidate))
+        })
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout du candidat ICE:', error)
+    }
+  }
+
   const startStream = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -26,6 +79,7 @@ export default function LiveStream() {
       
       streamRef.current = stream
       setIsStreaming(true)
+      setError(null)
 
       // Connexion au serveur WebSocket
       const ws = new WebSocket(wsUrl)
@@ -65,65 +119,6 @@ export default function LiveStream() {
     } catch (error) {
       console.error('Erreur lors du démarrage du stream:', error)
       setError('Erreur lors de l\'accès à la webcam')
-    }
-  }
-
-  const handleWatcher = async (id: string) => {
-    const peerConnection = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' }
-      ]
-    })
-
-    peerConnections.current[id] = peerConnection
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => {
-        peerConnection.addTrack(track, streamRef.current!)
-      })
-    }
-
-    peerConnection.onicecandidate = (event) => {
-      if (event.candidate && wsRef.current) {
-        wsRef.current.send(JSON.stringify({
-          type: 'candidate',
-          targetId: id,
-          candidate: event.candidate
-        }))
-      }
-    }
-
-    const offer = await peerConnection.createOffer()
-    await peerConnection.setLocalDescription(offer)
-
-    if (wsRef.current) {
-      wsRef.current.send(JSON.stringify({
-        type: 'offer',
-        targetId: id,
-        offer: offer
-      }))
-    }
-  }
-
-  const handleAnswer = async (id: string, answer: RTCSessionDescription) => {
-    const peerConnection = peerConnections.current[id]
-    if (peerConnection) {
-      await peerConnection.setRemoteDescription(answer)
-    }
-  }
-
-  const handleCandidate = async (id: string, candidate: RTCIceCandidate) => {
-    const peerConnection = peerConnections.current[id]
-    if (peerConnection) {
-      await peerConnection.addIceCandidate(candidate)
-    }
-  }
-
-  const handleDisconnect = (id: string) => {
-    const peerConnection = peerConnections.current[id]
-    if (peerConnection) {
-      peerConnection.close()
-      delete peerConnections.current[id]
     }
   }
 
