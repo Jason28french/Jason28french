@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import io from 'socket.io-client'
 
 export default function LiveStream() {
   const [isStreaming, setIsStreaming] = useState(false)
@@ -9,7 +8,7 @@ export default function LiveStream() {
   const [viewers, setViewers] = useState(0)
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
-  const socketRef = useRef<any>(null)
+  const wsRef = useRef<WebSocket | null>(null)
   const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({})
 
   const startStream = async () => {
@@ -27,58 +26,100 @@ export default function LiveStream() {
       setIsStreaming(true)
       setError(null)
 
-      // Connexion au serveur Socket.IO avec URL dynamique
-      const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || '')
-      socketRef.current = socket
+      // Connexion au serveur WebSocket
+      const ws = new WebSocket('ws://localhost:3001')
+      wsRef.current = ws
 
-      socket.emit('broadcaster')
+      ws.onopen = () => {
+        console.log('Connecté au serveur de streaming')
+        ws.send(JSON.stringify({ type: 'broadcaster' }))
+      }
 
-      socket.on('watcher', (id: string) => {
-        const peerConnection = new RTCPeerConnection({
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' }
-          ]
-        })
-
-        peerConnections.current[id] = peerConnection
-
-        stream.getTracks().forEach(track => {
-          peerConnection.addTrack(track, stream)
-        })
-
-        peerConnection.onicecandidate = (event) => {
-          if (event.candidate) {
-            socket.emit('candidate', id, event.candidate)
-          }
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data)
+        switch (data.type) {
+          case 'watcher':
+            handleWatcher(data.id)
+            break
+          case 'answer':
+            handleAnswer(data.id, data.data)
+            break
+          case 'candidate':
+            handleCandidate(data.id, data.data)
+            break
+          case 'disconnect':
+            handleDisconnect(data.id)
+            break
         }
+      }
 
-        peerConnection.createOffer()
-          .then(sdp => peerConnection.setLocalDescription(sdp))
-          .then(() => {
-            socket.emit('offer', id, peerConnection.localDescription)
-          })
-      })
-
-      socket.on('answer', (id: string, description: RTCSessionDescription) => {
-        peerConnections.current[id].setRemoteDescription(description)
-      })
-
-      socket.on('candidate', (id: string, candidate: RTCIceCandidate) => {
-        peerConnections.current[id].addIceCandidate(new RTCIceCandidate(candidate))
-      })
-
-      socket.on('disconnectPeer', (id: string) => {
-        peerConnections.current[id].close()
-        delete peerConnections.current[id]
-      })
-
-      socket.on('viewerCount', (count: number) => {
-        setViewers(count)
-      })
+      ws.onerror = (err) => {
+        console.error('Erreur WebSocket:', err)
+        setError('Erreur de connexion au serveur de streaming')
+      }
 
     } catch (err) {
       setError('Erreur lors de l\'accès à la webcam. Veuillez vérifier vos permissions.')
       console.error('Erreur de streaming:', err)
+    }
+  }
+
+  const handleWatcher = async (id: string) => {
+    const peerConnection = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' }
+      ]
+    })
+
+    peerConnections.current[id] = peerConnection
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => {
+        peerConnection.addTrack(track, streamRef.current!)
+      })
+    }
+
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate && wsRef.current) {
+        wsRef.current.send(JSON.stringify({
+          type: 'candidate',
+          targetId: id,
+          candidate: event.candidate
+        }))
+      }
+    }
+
+    const offer = await peerConnection.createOffer()
+    await peerConnection.setLocalDescription(offer)
+
+    if (wsRef.current) {
+      wsRef.current.send(JSON.stringify({
+        type: 'offer',
+        targetId: id,
+        offer: offer
+      }))
+    }
+  }
+
+  const handleAnswer = async (id: string, answer: RTCSessionDescription) => {
+    const peerConnection = peerConnections.current[id]
+    if (peerConnection) {
+      await peerConnection.setRemoteDescription(answer)
+    }
+  }
+
+  const handleCandidate = async (id: string, candidate: RTCIceCandidate) => {
+    const peerConnection = peerConnections.current[id]
+    if (peerConnection) {
+      await peerConnection.addIceCandidate(candidate)
+    }
+  }
+
+  const handleDisconnect = (id: string) => {
+    const peerConnection = peerConnections.current[id]
+    if (peerConnection) {
+      peerConnection.close()
+      delete peerConnections.current[id]
     }
   }
 
@@ -92,9 +133,9 @@ export default function LiveStream() {
       setIsStreaming(false)
     }
 
-    if (socketRef.current) {
-      socketRef.current.disconnect()
-      socketRef.current = null
+    if (wsRef.current) {
+      wsRef.current.close()
+      wsRef.current = null
     }
 
     Object.values(peerConnections.current).forEach(pc => pc.close())

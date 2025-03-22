@@ -1,75 +1,54 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import io from 'socket.io-client';
 
 export default function StreamViewer() {
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const socketRef = useRef<any>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
 
   useEffect(() => {
     const connectToStream = () => {
       try {
-        const socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || '');
-        socketRef.current = socket;
+        const ws = new WebSocket('ws://localhost:3001');
+        wsRef.current = ws;
 
-        socket.emit('watcher');
-
-        socket.on('broadcaster', () => {
-          console.log('Diffuseur trouvé');
-        });
-
-        socket.on('offer', (id: string, description: RTCSessionDescription) => {
-          const peerConnection = new RTCPeerConnection({
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' }
-            ]
-          });
-
-          peerConnectionRef.current = peerConnection;
-
-          peerConnection.ontrack = (event) => {
-            if (videoRef.current) {
-              videoRef.current.srcObject = event.streams[0];
-            }
-          };
-
-          peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-              socket.emit('candidate', id, event.candidate);
-            }
-          };
-
-          peerConnection.setRemoteDescription(description)
-            .then(() => peerConnection.createAnswer())
-            .then(sdp => peerConnection.setLocalDescription(sdp))
-            .then(() => {
-              socket.emit('answer', id, peerConnection.localDescription);
-            });
-        });
-
-        socket.on('candidate', (id: string, candidate: RTCIceCandidate) => {
-          if (peerConnectionRef.current) {
-            peerConnectionRef.current.addIceCandidate(new RTCIceCandidate(candidate));
-          }
-        });
-
-        socket.on('connect', () => {
+        ws.onopen = () => {
+          console.log('Connecté au serveur de streaming');
+          ws.send(JSON.stringify({ type: 'watcher' }));
           setIsConnected(true);
           setError(null);
-        });
+        };
 
-        socket.on('disconnect', () => {
+        ws.onmessage = async (event) => {
+          const data = JSON.parse(event.data);
+          
+          switch (data.type) {
+            case 'broadcaster':
+              console.log('Diffuseur trouvé');
+              break;
+            case 'offer':
+              await handleOffer(data.id, data.data);
+              break;
+            case 'candidate':
+              await handleCandidate(data.id, data.data);
+              break;
+            case 'disconnect':
+              handleDisconnect(data.id);
+              break;
+          }
+        };
+
+        ws.onclose = () => {
           setIsConnected(false);
-        });
+        };
 
-        socket.on('error', (err: Error) => {
-          console.error('Erreur Socket.IO:', err);
-          setError('Erreur de connexion au stream');
-        });
+        ws.onerror = (err) => {
+          console.error('Erreur WebSocket:', err);
+          setError('Erreur de connexion au serveur de streaming');
+        };
 
       } catch (err) {
         console.error('Erreur de connexion:', err);
@@ -80,14 +59,65 @@ export default function StreamViewer() {
     connectToStream();
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect();
+      if (wsRef.current) {
+        wsRef.current.close();
       }
       if (peerConnectionRef.current) {
         peerConnectionRef.current.close();
       }
     };
   }, []);
+
+  const handleOffer = async (id: string, offer: RTCSessionDescription) => {
+    const peerConnection = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' }
+      ]
+    });
+
+    peerConnectionRef.current = peerConnection;
+
+    peerConnection.ontrack = (event) => {
+      if (videoRef.current) {
+        videoRef.current.srcObject = event.streams[0];
+      }
+    };
+
+    peerConnection.onicecandidate = (event) => {
+      if (event.candidate && wsRef.current) {
+        wsRef.current.send(JSON.stringify({
+          type: 'candidate',
+          targetId: id,
+          candidate: event.candidate
+        }));
+      }
+    };
+
+    await peerConnection.setRemoteDescription(offer);
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+
+    if (wsRef.current) {
+      wsRef.current.send(JSON.stringify({
+        type: 'answer',
+        targetId: id,
+        answer: answer
+      }));
+    }
+  };
+
+  const handleCandidate = async (id: string, candidate: RTCIceCandidate) => {
+    if (peerConnectionRef.current) {
+      await peerConnectionRef.current.addIceCandidate(candidate);
+    }
+  };
+
+  const handleDisconnect = (id: string) => {
+    if (peerConnectionRef.current) {
+      peerConnectionRef.current.close();
+      peerConnectionRef.current = null;
+    }
+  };
 
   return (
     <div className="w-full max-w-4xl mx-auto">
