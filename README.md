@@ -1,81 +1,82 @@
-# Site Web de Jason
+# Jason Project
 
-Un site web moderne et professionnel pour Jason, le modèle français avec le plus beau booty de France.
+Une application de streaming en direct avec authentification utilisateur.
 
-## Technologies Utilisées
+## Fonctionnalités
 
-- Next.js 14
-- TypeScript
-- Tailwind CSS
-- React
+- Inscription et connexion des utilisateurs
+- Différents rôles utilisateur (spectateur et diffuseur)
+- Streaming en direct via webcam
+- Interface utilisateur moderne et responsive
 
 ## Prérequis
 
-- Node.js 18.0.0 ou supérieur
+- Node.js (v18 ou supérieur)
+- PostgreSQL
 - npm ou yarn
 
 ## Installation
 
 1. Clonez le repository :
 ```bash
-git clone [URL_DU_REPO]
-cd jason-website
+git clone https://github.com/Jason28french/Jason28french.git
+cd Jason28french
 ```
 
 2. Installez les dépendances :
 ```bash
 npm install
-# ou
-yarn install
 ```
 
-3. Créez un fichier `.env.local` à la racine du projet et ajoutez vos variables d'environnement :
-```env
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
+3. Configurez la base de données :
+   - Créez une base de données PostgreSQL
+   - Copiez le fichier `.env.example` vers `.env`
+   - Mettez à jour les variables d'environnement dans `.env` avec vos informations de connexion
+
+4. Initialisez la base de données :
+```bash
+npx prisma migrate dev
 ```
 
-4. Lancez le serveur de développement :
+5. Lancez le serveur de développement :
 ```bash
 npm run dev
-# ou
-yarn dev
 ```
 
-5. Ouvrez [http://localhost:3000](http://localhost:3000) dans votre navigateur.
-
-## Structure du Projet
-
-```
-jason-website/
-├── src/
-│   ├── app/
-│   │   ├── layout.tsx
-│   │   ├── page.tsx
-│   │   └── globals.css
-│   └── components/
-│       ├── Navigation.tsx
-│       ├── Gallery.tsx
-│       └── Contact.tsx
-├── public/
-│   └── images/
-├── package.json
-├── tsconfig.json
-├── next.config.js
-└── tailwind.config.ts
+6. Dans un autre terminal, lancez le serveur de streaming :
+```bash
+npm run streaming-server
 ```
 
-## Fonctionnalités
+## Structure du projet
 
-- Design responsive et moderne
-- Navigation fluide
-- Galerie de photos interactive
-- Formulaire de contact
-- Intégration des réseaux sociaux
-- Optimisé pour le SEO
+- `/src/app` - Pages et routes de l'application
+- `/src/components` - Composants React réutilisables
+- `/src/lib` - Utilitaires et configurations
+- `/prisma` - Schéma et migrations de la base de données
 
-## Déploiement
+## Rôles utilisateur
 
-Le site peut être déployé sur Vercel, Netlify ou tout autre service de déploiement compatible avec Next.js.
+- **Spectateur** : Peut regarder les diffusions en direct
+- **Diffuseur** : Peut diffuser sa webcam en direct
+
+## Sécurité
+
+- Authentification JWT
+- Hachage des mots de passe avec bcrypt
+- Protection des routes avec middleware
+- Validation des données
+
+## Technologies utilisées
+
+- Next.js
+- React
+- TypeScript
+- Prisma
+- PostgreSQL
+- Socket.IO
+- WebRTC
+- Tailwind CSS
 
 ## Contribution
 
@@ -84,6 +85,3 @@ Les contributions sont les bienvenues ! N'hésitez pas à ouvrir une issue ou à
 ## Licence
 
 MIT 
-
-npm run build
-npm start 
